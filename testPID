@@ -1,0 +1,118 @@
+#define rpwm1 6 
+#define lpwm1 5
+#define en1 4
+#define en1b 3
+
+#define rpwm2 11 
+#define lpwm2 10
+#define en2 12
+#define en2b 13
+int sensorPin[5] = {A1, A2, A3, A4, A5};
+
+double Error = 0, SumError = 0, LastError = 0;
+double BasePWM = 250; 
+double Kp = 43;       // Proporsional 
+double Ki = 0.2;      // Integral     
+double Kd = 145;      // Diferensial
+double Ts = 1;        // Time sampling
+char sensor[5];
+
+int NilaiPosisi;
+double Kec_Max = 100;
+double Kec_Min = -100;
+void driveMotor(double motorKi, double motorKa){
+    if(motorKi >=0 ) {
+          digitalWrite(en1, HIGH);
+          digitalWrite(en1b, HIGH);
+          analogWrite(lpwm1, motorKi);
+          analogWrite(rpwm1, 0);
+    }
+    else if(motorKi <0 ) {
+          digitalWrite(en1, HIGH);
+          digitalWrite(en1b, HIGH);
+          analogWrite(lpwm1, 0);
+          analogWrite(rpwm1, motorKi);
+    }
+
+    if(motorKa >=0 ) {
+          digitalWrite(en2, HIGH);
+          digitalWrite(en2b, HIGH);
+          analogWrite(lpwm2, 0);
+          analogWrite(rpwm2, motorKa);
+    }
+    else if(motorKa <0 ) {
+          digitalWrite(en2, HIGH);
+          digitalWrite(en2b, HIGH);
+          analogWrite(lpwm2, motorKa);
+          analogWrite(rpwm2, 0);
+    }        
+}
+
+
+/**** Fungsi perhitungan PID ****/
+void lineFollow() {
+//  robotPosition();
+  int SetPoint = 0;                      // Setpoint yang diinginkan
+  Error = SetPoint - NilaiPosisi;        // Error
+  double DeltaError = Error - LastError; // Delta Error (Selisih error sekarang e(t) dengan error sebelumya e(t-1))
+  SumError += LastError;                 // Akumulasi error
+  double P = Kp * Error;                 // Kontrol proporsional
+  double I = Ki * SumError * Ts;         // Kontrol integral
+  double D = ((Kd / Ts) * DeltaError);   // Kontrol derivative
+  LastError = Error;                     // Error sebelumnya
+  double outPID = P + I + D;             // Output PID
+  double motorKi = BasePWM - outPID;     // Motor Kiri
+  double motorKa = BasePWM + outPID;     // Motor Kanan
+  /*** Pembatasan kecepatan ***/
+  if (motorKi > Kec_Max)motorKi = Kec_Max;
+  if (motorKi < Kec_Min)motorKi = Kec_Min;
+  if (motorKa > Kec_Max)motorKa = Kec_Max;
+  if (motorKa < Kec_Min)motorKa = Kec_Min;
+  driveMotor(motorKi, motorKa);
+}
+
+void readSensor(){
+    for(int a=0; a<5;a++){
+        int vel = analogRead(sensorPin[a]);
+        
+        if(vel > 100) sensor[a] = 1;  // tentukan batas nilai sensor
+        else sensor[a] = 0;
+    }
+    
+    if      (strcmp(sensor, "00001")) NilaiPosisi = -7;
+    else if (strcmp(sensor, "00111")) NilaiPosisi = -6;
+    else if (strcmp(sensor, "00011")) NilaiPosisi = -5;
+    else if (strcmp(sensor, "00010")) NilaiPosisi = -3;
+    else if (strcmp(sensor, "00110")) NilaiPosisi = -1;
+    else if (strcmp(sensor, "00100")) NilaiPosisi =  0;
+    else if (strcmp(sensor, "01100")) NilaiPosisi = -1;
+    else if (strcmp(sensor, "01000")) NilaiPosisi = -3;
+    else if (strcmp(sensor, "11000")) NilaiPosisi = -5;
+    else if (strcmp(sensor, "11100")) NilaiPosisi = -6;
+    else if (strcmp(sensor, "10000")) NilaiPosisi = -7;    
+}
+
+void setup(){
+  //DRIVER MOTOR
+  pinMode(rpwm1, OUTPUT);
+  pinMode(lpwm1, OUTPUT);
+  pinMode(en1, OUTPUT);
+  pinMode(en1b, OUTPUT);
+
+  pinMode(rpwm2, OUTPUT);
+  pinMode(lpwm2, OUTPUT);
+  pinMode(en2, OUTPUT);
+  pinMode(en2b, OUTPUT);
+
+  //LINETRACER
+  pinMode(sensorPin[0],INPUT);
+  pinMode(sensorPin[1],INPUT);
+  pinMode(sensorPin[2],INPUT);
+  pinMode(sensorPin[3],INPUT);
+  pinMode(sensorPin[4],INPUT);
+  Serial.begin(9600);
+  }
+void loop(){
+  readSensor();
+  lineFollow();
+  }
